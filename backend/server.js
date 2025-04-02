@@ -1,52 +1,67 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
+const app = require('./app');
+const http = require('http');
 const dotenv = require('dotenv');
 
-// Load environment variables
 dotenv.config();
 
-// Import routes (to be created later)
-// const authRoutes = require('./routes/auth');
-// const channelRoutes = require('./routes/channels');
-// const contentRoutes = require('./routes/content');
-// const analyticsRoutes = require('./routes/analytics');
+// Bağlantı noktası belirleme
+const port = normalizePort(process.env.PORT || '4000');
+app.set('port', port);
 
-// Initialize Express app
-const app = express();
+// HTTP sunucusu oluşturma
+const server = http.createServer(app);
 
-// Middleware
-app.use(helmet()); // Security headers
-app.use(morgan('dev')); // Logging
-app.use(cors()); // CORS for all routes
-app.use(express.json()); // Parse JSON bodies
-app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
+// Sunucuyu dinleme
+server.listen(port);
+server.on('error', onError);
+server.on('listening', onListening);
 
-// Routes
-app.get('/', (req, res) => {
-  res.json({ message: 'Welcome to YouTube Otomasyon Sistemi API' });
-});
+// Port numarasını normalleştir
+function normalizePort(val) {
+  const port = parseInt(val, 10);
 
-// Use routes (to be implemented)
-// app.use('/api/auth', authRoutes);
-// app.use('/api/channels', channelRoutes);
-// app.use('/api/content', contentRoutes);
-// app.use('/api/analytics', analyticsRoutes);
+  if (isNaN(port)) {
+    return val;
+  }
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(err.status || 500).json({
-    message: err.message || 'Internal Server Error',
-    error: process.env.NODE_ENV === 'development' ? err : {}
-  });
-});
+  if (port >= 0) {
+    return port;
+  }
 
-// Start server
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+  return false;
+}
 
-module.exports = app;
+// Sunucu hatası olay işleyicisi
+function onError(error) {
+  if (error.syscall !== 'listen') {
+    throw error;
+  }
+
+  const bind = typeof port === 'string'
+    ? 'Pipe ' + port
+    : 'Port ' + port;
+
+  // Özel hata mesajları
+  switch (error.code) {
+    case 'EACCES':
+      console.error(bind + ' requires elevated privileges');
+      process.exit(1);
+      break;
+    case 'EADDRINUSE':
+      console.error(bind + ' is already in use');
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
+}
+
+// Sunucu dinleme olay işleyicisi
+function onListening() {
+  const addr = server.address();
+  const bind = typeof addr === 'string'
+    ? 'pipe ' + addr
+    : 'port ' + addr.port;
+  console.log('Listening on ' + bind);
+  console.log(`Server running at http://localhost:${port}`);
+}
