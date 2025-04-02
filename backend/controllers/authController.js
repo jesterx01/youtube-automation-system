@@ -1,3 +1,4 @@
+const { Op } = require('sequelize');
 const User = require('../models/User');
 const { generateToken } = require('../config/jwt');
 
@@ -9,7 +10,7 @@ const register = async (req, res) => {
     // Kullanıcı adı veya e-posta zaten var mı kontrol et
     const existingUser = await User.findOne({
       where: {
-        [sequelize.Op.or]: [{ username }, { email }]
+        [Op.or]: [{ username }, { email }]
       }
     });
     
@@ -53,7 +54,7 @@ const login = async (req, res) => {
     // Kullanıcıyı bul
     const user = await User.findOne({
       where: {
-        [sequelize.Op.or]: [
+        [Op.or]: [
           { username },
           { email: username } // E-posta ile de giriş yapılabilir
         ]
