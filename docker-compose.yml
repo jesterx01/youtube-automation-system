@@ -1,0 +1,129 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:14-alpine
+    container_name: yt-auto-postgres
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+    environment:
+      POSTGRES_USER: ${DB_USER:-ytauto}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-ytautopass}
+      POSTGRES_DB: ${DB_NAME:-youtube_automation}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    networks:
+      - yt-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ytauto} -d ${DB_NAME:-youtube_automation}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: yt-auto-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-ytautoredis}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - yt-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: yt-auto-backend
+    restart: unless-stopped
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: ${API_PORT:-4000}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-ytauto}
+      DB_PASSWORD: ${DB_PASSWORD:-ytautopass}
+      DB_NAME: ${DB_NAME:-youtube_automation}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-ytautoredis}
+      JWT_SECRET: ${JWT_SECRET:-your_jwt_secret}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      GOOGLE_APPLICATION_CREDENTIALS: /app/config/google-credentials.json
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    ports:
+      - "${API_PORT:-4000}:4000"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - yt-network
+
+  worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    container_name: yt-auto-worker
+    restart: unless-stopped
+    volumes:
+      - ./worker:/app
+      - /app/node_modules
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-ytauto}
+      DB_PASSWORD: ${DB_PASSWORD:-ytautopass}
+      DB_NAME: ${DB_NAME:-youtube_automation}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-ytautoredis}
+      GOOGLE_APPLICATION_CREDENTIALS: /app/config/google-credentials.json
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    depends_on:
+      - postgres
+      - redis
+      - backend
+    networks:
+      - yt-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: yt-auto-frontend
+    restart: unless-stopped
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      REACT_APP_API_URL: http://localhost:${API_PORT:-4000}
+    ports:
+      - "${CLIENT_PORT:-3000}:3000"
+    depends_on:
+      - backend
+    networks:
+      - yt-network
+
+networks:
+  yt-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
